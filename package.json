@@ -1,0 +1,25 @@
+{
+  "name": "esp32-pothole-detection-system",
+  "version": "1.0.0",
+  "description": "Smart Pothole Detection & Real-Time Camera Monitoring System using ESP32, HC-SR04, RGB LED, Active Buzzer, Laptop Webcam, and Web Dashboard",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js",
+    "dev": "node backend/server.js"
+  },
+  "keywords": [
+    "esp32",
+    "pothole-detection",
+    "web-serial-api",
+    "iot",
+    "hc-sr04",
+    "webcam",
+    "smart-city"
+  ],
+  "author": "Antigravity Engineering",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  }
+}

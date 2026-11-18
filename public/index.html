@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32 Smart Pothole Detection & Real-Time Camera Monitoring</title>
+  <link rel="stylesheet" href="style.css?v=2.1">
+  <!-- Leaflet Map CSS (Local High-Speed Storage + CDN Fallback) -->
+  <link rel="stylesheet" href="leaflet.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
+</head>
+
+<body>
+  <!-- Top Navigation Bar -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>ESP32 Pothole Vision</h1>
+          <span class="brand-subtitle">Smart Pothole Detection & Real-Time Monitoring System</span>
+        </div>
+      </div>
+
+      <!-- Quick Status Badges -->
+      <div class="header-status-group">
+        <div id="headerEspStatus" class="status-pill status-disconnected">
+          <span class="status-dot"></span>
+          <span class="status-label">ESP32: Disconnected</span>
+        </div>
+        <div id="headerCamStatus" class="status-pill status-inactive">
+          <span class="status-dot"></span>
+          <span class="status-label">Webcam: Initializing...</span>
+        </div>
+        <div id="headerGpsStatus" class="status-pill status-inactive">
+          <span class="status-dot"></span>
+          <span class="status-label">GPS: Locating...</span>
+        </div>
+        <div id="headerArmStatus" class="status-pill status-armed">
+          <span class="status-dot"></span>
+          <span class="status-label">Capture: Armed</span>
+        </div>
+      </div>
+
+      <!-- Header Actions -->
+      <div class="header-actions">
+        <button id="themeToggleBtn" class="btn btn-icon" title="Toggle Dark/Light Mode">
+          <svg id="themeIconSun" class="icon hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg id="themeIconMoon" class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+        <button id="btnPinoutModal" class="btn btn-secondary btn-sm">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-svg">
+            <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
+            <rect x="9" y="9" width="6" height="6"></rect>
+            <line x1="9" y1="1" x2="9" y2="4"></line>
+            <line x1="15" y1="1" x2="15" y2="4"></line>
+            <line x1="9" y1="20" x2="9" y2="23"></line>
+            <line x1="15" y1="20" x2="15" y2="23"></line>
+            <line x1="20" y1="9" x2="23" y2="9"></line>
+            <line x1="20" y1="14" x2="23" y2="14"></line>
+            <line x1="1" y1="9" x2="4" y2="9"></line>
+            <line x1="1" y1="14" x2="4" y2="14"></line>
+          </svg>
+          Pinout Guide
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="nav-tabs-wrapper">
+    <div class="tabs-container">
+      <button class="nav-tab active" data-tab="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tab-icon">
+          <rect x="3" y="3" width="7" height="7"></rect>
+          <rect x="14" y="3" width="7" height="7"></rect>
+          <rect x="14" y="14" width="7" height="7"></rect>
+          <rect x="3" y="14" width="7" height="7"></rect>
+        </svg>
+        Live Dashboard
+      </button>
+      <button class="nav-tab" data-tab="history">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tab-icon">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+        Detection History (<span id="tabHistoryCount">0</span>)
+      </button>
+      <button class="nav-tab" data-tab="map">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tab-icon">
+          <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
+          <line x1="8" y1="2" x2="8" y2="18"></line>
+          <line x1="16" y1="6" x2="16" y2="22"></line>
+        </svg>
+        Live GPS Map (<span id="tabMapCount">0</span>)
+      </button>
+      <button class="nav-tab" data-tab="testing">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tab-icon">
+          <path
+            d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z">
+          </path>
+        </svg>
+        Hardware Testing Suite
+      </button>
+      <button class="nav-tab" data-tab="serial">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="tab-icon">
+          <polyline points="4 17 10 11 4 5"></polyline>
+          <line x1="12" y1="19" x2="20" y2="19"></line>
+        </svg>
+        Serial Terminal
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Application Content -->
+  <main class="main-container">
+
+    <!-- Browser Serial Support Banner (if Web Serial not supported) -->
+    <div id="serialWarningBanner" class="alert-banner alert-warning hidden">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="banner-icon">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+        <line x1="12" y1="9" x2="12" y2="13"></line>
+        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+      </svg>
+      <div class="banner-text">
+        <strong>Web Serial API is not supported in this browser!</strong>
+        <span>Please use Google Chrome, Microsoft Edge, or Opera on desktop to communicate directly with the ESP32 USB
+          COM port.</span>
+      </div>
+    </div>
+
+    <!-- TAB 1: LIVE DASHBOARD -->
+    <section id="tab-dashboard" class="tab-content active">
+
+      <!-- Row 1: ESP32 Connection Bar & Hardware Summary -->
+      <div class="card glassmorphism-card connection-bar-card">
+        <div class="connection-bar-content">
+          <div class="connection-meta">
+            <div class="connection-badge-indicator" id="connLedIndicator"></div>
+            <div>
+              <h3 class="panel-heading">ESP32 Hardware Bridge</h3>
+              <p class="panel-sub" id="portDetailsText">Select USB COM Port at 115200 Baud</p>
+            </div>
+          </div>
+          <div class="connection-controls">
+            <span class="badge badge-info">Baud: 115200</span>
+            <button id="btnConnectSerial" class="btn btn-primary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-svg">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+              CONNECT ESP32
+            </button>
+            <button id="btnDisconnectSerial" class="btn btn-danger hidden">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-svg">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="15" y1="9" x2="9" y2="15"></line>
+                <line x1="9" y1="9" x2="15" y2="15"></line>
+              </svg>
+              DISCONNECT
+            </button>
+          </div>
+        </div>
+        <div id="serialErrorContainer" class="serial-error-box hidden">
+          <span id="serialErrorMsg"></span>
+        </div>
+      </div>
+
+      <!-- Row 2: Live Metrics Grid -->
+      <div class="grid-4-col metrics-grid">
+
+        <!-- Card 1: Real-time Distance -->
+        <div class="card glassmorphism-card metric-card">
+          <div class="metric-header">
+            <span class="metric-title">Measured Distance</span>
+            <div class="metric-icon distance-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M2 12h20M7 8l-5 4 5 4M17 8l5 4-5 4" />
+              </svg>
+            </div>
+          </div>
+          <div class="metric-value-container">
+            <span id="metricDistanceVal" class="metric-huge">--</span>
+            <span class="metric-unit">cm</span>
+          </div>
+          <div class="metric-footer">
+            <span id="metricSensorStatus" class="badge badge-gray">Sensor: Offline</span>
+            <span id="metricTimeSinceLast" class="metric-micro">No packets yet</span>
+          </div>
+        </div>
+
+        <!-- Card 2: Current Detection Zone -->
+        <div class="card glassmorphism-card metric-card">
+          <div class="metric-header">
+            <span class="metric-title">Current Road Zone</span>
+            <div class="metric-icon zone-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 2 22 22 22 12 2"></polygon>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+              </svg>
+            </div>
+          </div>
+          <div class="zone-display">
+            <div id="zoneBadgeBig" class="zone-badge zone-safe">
+              <span id="zoneNameText">ZONE 1 - SAFE</span>
+            </div>
+          </div>
+          <div class="metric-footer">
+            <span id="zoneRangeText" class="metric-sub">0.0 to 50.0 cm range</span>
+          </div>
+        </div>
+
+        <!-- Card 3: RGB LED Hardware Status -->
+        <div class="card glassmorphism-card metric-card">
+          <div class="metric-header">
+            <span class="metric-title">RGB LED Hardware</span>
+            <div class="metric-icon led-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="9"></circle>
+                <path d="M12 3v3M12 18v3M3 12h3M18 12h3"></path>
+              </svg>
+            </div>
+          </div>
+          <div class="led-preview-box">
+            <div id="ledSimulatorBulb" class="led-bulb led-off"></div>
+            <div class="led-info">
+              <span id="ledStatusText" class="status-strong">OFF</span>
+              <span class="pins-sub">GPIO: R:14 | G:26 | B:27</span>
+            </div>
+          </div>
+          <div class="metric-footer">
+            <span id="ledDescriptionText" class="metric-sub">Common Cathode</span>
+          </div>
+        </div>
+
+        <!-- Card 4: Active Buzzer Status -->
+        <div class="card glassmorphism-card metric-card">
+          <div class="metric-header">
+            <span class="metric-title">Buzzer Alert Status</span>
+            <div class="metric-icon buzzer-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+              </svg>
+            </div>
+          </div>
+          <div class="buzzer-preview-box">
+            <div class="sound-wave-container" id="buzzerSoundWave">
+              <span class="sound-bar bar1"></span>
+              <span class="sound-bar bar2"></span>
+              <span class="sound-bar bar3"></span>
+              <span class="sound-bar bar4"></span>
+              <span class="sound-bar bar5"></span>
+            </div>
+            <div class="buzzer-info">
+              <span id="buzzerStatusText" class="status-strong">OFF</span>
+              <span class="pins-sub">GPIO 25 (Active Buzzer)</span>
+            </div>
+          </div>
+          <div class="metric-footer">
+            <span id="buzzerFrequencyText" class="metric-sub">No alert sounding</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 3: 0-80cm Visual Distance Gauge & Thresholds -->
+      <div class="card glassmorphism-card distance-meter-card">
+        <div class="card-header-flex">
+          <div>
+            <h3 class="card-title">0 to 80 cm Road Surface Depth Gauge</h3>
+            <p class="card-subtitle">Real-time distance pointer relative to calibrated pothole thresholds</p>
+          </div>
+          <div class="meter-legend">
+            <span class="legend-chip legend-safe"><span class="chip-color safe"></span>Safe (0-50cm)</span>
+            <span class="legend-chip legend-normal"><span class="chip-color normal"></span>Normal (50.1-55cm)</span>
+            <span class="legend-chip legend-warn"><span class="chip-color warn"></span>Warning (55.1-60cm)</span>
+            <span class="legend-chip legend-danger"><span class="chip-color danger"></span>Danger (>60cm)</span>
+          </div>
+        </div>
+
+        <div class="meter-track-wrapper">
+          <!-- Threshold Markers -->
+          <div class="meter-threshold-markers">
+            <div class="marker-tag marker-safe" style="left: 0%; width: 62.5%;">
+              <span>SAFE ZONE</span>
+            </div>
+            <div class="marker-tag marker-normal" style="left: 62.5%; width: 6.25%;">
+              <span>NORMAL</span>
+            </div>
+            <div class="marker-tag marker-warn" style="left: 68.75%; width: 6.25%;">
+              <span>POTHOLE WARNING</span>
+            </div>
+            <div class="marker-tag marker-danger" style="left: 75%; width: 25%;">
+              <span>CRITICAL DANGER</span>
+            </div>
+          </div>
+
+          <!-- The Color Track Bar -->
+          <div class="meter-bar-track">
+            <div class="meter-segment seg-safe" style="width: 62.5%;"></div>
+            <div class="meter-segment seg-normal" style="width: 6.25%;"></div>
+            <div class="meter-segment seg-warn" style="width: 6.25%;"></div>
+            <div class="meter-segment seg-danger" style="width: 25%;"></div>
+
+            <!-- Target Trigger Flags -->
+            <div class="meter-pin-trigger" style="left: 70%;" title="Auto-Capture Trigger: >= 56.0 cm">
+              <span class="pin-label">📸 56.0cm (Trigger)</span>
+            </div>
+            <div class="meter-pin-rearm" style="left: 66.25%;" title="Re-Arm Level: <= 53.0 cm">
+              <span class="pin-label">🔄 53.0cm (Re-arm)</span>
+            </div>
+
+            <!-- Live Distance Needle Pointer -->
+            <div id="meterLivePointer" class="meter-live-pointer" style="left: 0%;">
+              <div class="needle-bubble">
+                <span id="needleDistanceText">0.0 cm</span>
+              </div>
+              <div class="needle-line"></div>
+            </div>
+          </div>
+
+          <!-- Scale Numbers -->
+          <div class="meter-scale-ticks">
+            <span>0cm</span>
+            <span>10cm</span>
+            <span>20cm</span>
+            <span>30cm</span>
+            <span>40cm</span>
+            <span>50cm</span>
+            <span>55cm</span>
+            <span>60cm</span>
+            <span>70cm</span>
+            <span>80cm</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 4: Split Video Stream & Latest Captured Image -->
+      <div class="grid-2-col visual-monitoring-grid">
+
+        <!-- Column A: Laptop Webcam Live Stream -->
+        <div class="card glassmorphism-card camera-card">
+          <div class="card-header-flex">
+            <div>
+              <h3 class="card-title">Live Laptop Webcam Feed</h3>
+              <p class="card-subtitle">Continuous video preview with HTML5 Canvas auto-capture</p>
+            </div>
+            <div class="cam-badges">
+              <span id="camStateBadge" class="badge badge-success">Camera Active</span>
+              <span id="camArmBadge" class="badge badge-primary">ARMED & READY</span>
+            </div>
+          </div>
+
+          <div class="webcam-viewport">
+            <video id="webcamElement" autoplay playsinline muted></video>
+            <div id="camOverlayHUD" class="cam-overlay-hud">
+              <div class="hud-top">
+                <span class="hud-item hud-rec"><span class="hud-red-dot"></span> LIVE 720p</span>
+                <span id="hudDistanceBadge" class="hud-item">DEPTH: -- cm</span>
+              </div>
+              <div class="hud-crosshair"></div>
+              <div class="hud-bottom">
+                <span id="hudTimestampText" class="hud-item">2026-11-18 00:00:00</span>
+                <span id="hudZoneBadge" class="hud-item hud-zone-pill">SAFE</span>
+              </div>
+            </div>
+
+            <!-- Permission Denied Warning Container -->
+            <div id="camDeniedBox" class="camera-denied-overlay hidden">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="denied-icon">
+                <path
+                  d="M1 1l22 22m-5.46-5.46A9 9 0 0 1 12 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 0 1 2.508-4.51M9.9 4.24A9.12 9.12 0 0 1 12 4c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 0 1-4.132 5.411M14.12 14.12a3 3 0 1 1-4.24-4.24">
+                </path>
+              </svg>
+              <h4>Webcam Access Denied or Unavailable</h4>
+              <p>Please grant browser camera permissions in your address bar and reload to enable real-time pothole
+                image capture.</p>
+              <button id="btnRetryWebcam" class="btn btn-secondary btn-sm">Grant Permission & Retry</button>
+            </div>
+          </div>
+
+          <!-- Hidden Canvas for frame snapshot with watermark -->
+          <canvas id="captureCanvas" class="hidden"></canvas>
+        </div>
+
+        <!-- Column B: Latest Detected Pothole Image -->
+        <div class="card glassmorphism-card latest-capture-card">
+          <div class="card-header-flex">
+            <div>
+              <h3 class="card-title">Latest Detected Pothole</h3>
+              <p class="card-subtitle">Automated image capture triggered at &ge; 56.0 cm</p>
+            </div>
+            <div class="latest-actions">
+              <button id="btnDownloadLatest" class="btn btn-secondary btn-sm" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-svg">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Download
+              </button>
+              <button id="btnFullscreenLatest" class="btn btn-primary btn-sm" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-svg">
+                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"></path>
+                </svg>
+                Full Screen
+              </button>
+            </div>
+          </div>
+
+          <div class="latest-image-container">
+            <!-- Placeholder when no capture has occurred yet -->
+            <div id="noCapturePlaceholder" class="no-capture-placeholder">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+              <h4>Awaiting Pothole Detection</h4>
+              <p>When road surface drops &ge; 56.0 cm, a high-resolution snapshot with timestamp, distance, and zone
+                metadata will be captured and saved automatically.</p>
+            </div>
+
+            <!-- Image Viewport -->
+            <div id="latestCaptureView" class="latest-capture-view hidden">
+              <img id="latestCapturedImg" src="" alt="Latest Captured Pothole">
+              <div class="capture-metadata-panel">
+                <div class="meta-row">
+                  <span class="meta-label">Event ID:</span>
+                  <span id="latestEventId" class="meta-val font-mono">--</span>
+                </div>
+                <div class="meta-row">
+                  <span class="meta-label">Detection Time:</span>
+                  <span id="latestTimestamp" class="meta-val">--</span>
+                </div>
+                <div class="meta-row">
+                  <span class="meta-label">Measured Depth:</span>
+                  <span id="latestDistance" class="meta-val font-bold text-accent">-- cm</span>
+                </div>
+                <div class="meta-row">
+                  <span class="meta-label">Severity Zone:</span>
+                  <span id="latestZone" class="badge">--</span>
+                </div>
+                <div class="meta-row">
+                  <span class="meta-label">GPS Coords:</span>
+                  <span id="latestGpsCoords" class="meta-val font-mono">Acquiring...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Row 5: Real-Time Google Maps / OpenStreetMap Pothole Geolocation Tracker -->
+      <div class="card glassmorphism-card map-card">
+        <div class="card-header-flex">
+          <div>
+            <h3 class="card-title">Real-Time Geospatial Pothole Geotracker</h3>
+            <p class="card-subtitle">Live GPS geostamping of detected road surface craters with interactive
+              satellite/road map pins</p>
+          </div>
+          <div class="map-controls">
+            <span class="badge badge-info" id="gpsCoordsBadge">GPS: Locating...</span>
+            <div class="btn-group-sm">
+              <button id="btnMapStyleGoogle" class="btn btn-primary btn-xs" title="Google Maps (Official Roads)">Google Maps</button>
+              <button id="btnMapStyleSatellite" class="btn btn-secondary btn-xs" title="Google Satellite Hybrid View">Google Satellite</button>
+              <button id="btnMapStyleDark" class="btn btn-secondary btn-xs" title="CartoDB Dark Matter">Dark View</button>
+            </div>
+            <button id="btnCenterVehicle" class="btn btn-secondary btn-sm"
+              title="Center map to current vehicle position">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-svg">
+                <circle cx="12" cy="12" r="10"></circle>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+              My Location
+            </button>
+          </div>
+        </div>
+        <div id="googleMapDashboard" class="google-map-container">
+          <div class="map-loading-placeholder">
+            <div class="map-spinner"></div>
+            <span>Loading Geospatial Maps &amp; Satellites...</span>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- TAB 2: DETECTION HISTORY & EVENT GALLERY -->
+    <section id="tab-history" class="tab-content">
+      <div class="card glassmorphism-card history-card">
+        <div class="card-header-flex">
+          <div>
+            <h3 class="card-title">Pothole Detection Event History</h3>
+            <p class="card-subtitle">Persistent IndexedDB event records with snapshot imagery and telemetry</p>
+          </div>
+          <div class="history-controls">
+            <button id="btnExportCsv" class="btn btn-secondary btn-sm">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-svg">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+              Export CSV
+            </button>
+            <button id="btnExportJson" class="btn btn-secondary btn-sm">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-svg">
+                <polyline points="16 18 22 12 16 6"></polyline>
+                <polyline points="8 6 2 12 8 18"></polyline>
+              </svg>
+              Export JSON
+            </button>
+            <button id="btnClearHistory" class="btn btn-danger btn-sm">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-svg">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              Clear Records
+            </button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="data-table" id="historyTable">
+            <thead>
+              <tr>
+                <th>Event ID</th>
+                <th>Timestamp</th>
+                <th>Measured Depth</th>
+                <th>Alert Zone</th>
+                <th>GPS Location</th>
+                <th>LED / Buzzer</th>
+                <th>Image Thumbnail</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody">
+              <!-- Dynamically populated from IndexedDB -->
+              <tr class="empty-row">
+                <td colspan="8">No pothole events detected yet. Connect ESP32 and drive road sensor to begin logging.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB: LIVE GPS MAP -->
+    <section id="tab-map" class="tab-content">
+      <div class="card glassmorphism-card full-map-card">
+        <div class="card-header-flex">
+          <div>
+            <h3 class="card-title">Pothole Geospatial Road Intelligence Map</h3>
+            <p class="card-subtitle">Real-time geospatial mapping of all detected potholes powered by OpenStreetMap
+              &amp; Google Maps</p>
+          </div>
+          <div class="map-controls">
+            <span class="badge badge-primary" id="mapPotholeCountBadge">0 Potholes Pinned</span>
+            <div class="btn-group-sm">
+              <button id="btnMapStyleGoogleFull" class="btn btn-primary btn-xs">Google Maps</button>
+              <button id="btnMapStyleSatelliteFull" class="btn btn-secondary btn-xs">Google Satellite</button>
+              <button id="btnMapStyleDarkFull" class="btn btn-secondary btn-xs">Dark View</button>
+            </div>
+            <button id="btnCenterVehicleFull" class="btn btn-secondary btn-sm">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-svg">
+                <circle cx="12" cy="12" r="10"></circle>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+              My Location
+            </button>
+            <button id="btnFitAllMarkers" class="btn btn-primary btn-sm">Fit All Potholes</button>
+          </div>
+        </div>
+        <div id="googleMapFull" class="google-map-container full-view">
+          <div class="map-loading-placeholder">
+            <div class="map-spinner"></div>
+            <span>Loading Google Maps &amp; Geocoding Data...</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: HARDWARE TESTING SUITE (SECTION 10 & 11) -->
+    <section id="tab-testing" class="tab-content">
+      <div class="testing-suite-container">
+
+        <!-- Testing Overview & Overall Result Banner -->
+        <div class="card glassmorphism-card test-summary-card">
+          <div class="test-summary-header">
+            <div>
+              <h2 class="test-summary-title">Hardware Verification & Testing Suite</h2>
+              <p class="test-summary-desc">Individual unit tests for hardware actuators, sensors, webcam, and threshold
+                trigger logic</p>
+            </div>
+            <div>
+              <button id="btnRunAllTests" class="btn btn-primary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-svg">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                RUN ALL AUTOMATED TESTS
+              </button>
+            </div>
+          </div>
+
+          <!-- Overall Final Report Banner -->
+          <div id="overallTestBanner" class="overall-test-banner banner-pending">
+            <div class="overall-status-icon">
+              <svg id="overallIconPending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+              <svg id="overallIconPass" class="hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+              </svg>
+              <svg id="overallIconFail" class="hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="15" y1="9" x2="9" y2="15"></line>
+                <line x1="9" y1="9" x2="15" y2="15"></line>
+              </svg>
+            </div>
+            <div class="overall-status-content">
+              <h3 id="overallStatusTitle">TEST STATUS: PENDING VERIFICATION</h3>
+              <p id="overallStatusDesc">Click individual test verification buttons below or "Run All Automated Tests" to
+                execute hardware diagnostics.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 8 Individual Test Cards Grid -->
+        <div class="grid-2-col test-cards-grid">
+
+          <!-- TEST 1: ESP32 CONNECTION TEST -->
+          <div class="card glassmorphism-card test-card" id="testCard1">
+            <div class="test-card-header">
+              <div class="test-number">TEST 1</div>
+              <h4 class="test-title">ESP32 USB Connection Test</h4>
+              <span id="badgeTest1" class="test-badge badge-untested">NOT TESTED</span>
+            </div>
+            <p class="test-detail">Checks whether the ESP32 USB COM port is connected, verifies 115200 baud rate, and
+              listens for valid serial data frames.</p>
+            <div class="test-metrics-box">
+              <div class="t-row"><span>Port State:</span> <strong id="t1PortState">Disconnected</strong></div>
+              <div class="t-row"><span>Baud Rate:</span> <strong id="t1Baud">115200 bps</strong></div>
+              <div class="t-row"><span>Packets Received:</span> <strong id="t1Packets">0</strong></div>
+            </div>
+            <div class="test-actions">
+              <button id="btnTest1Run" class="btn btn-secondary btn-sm">Verify Connection</button>
+            </div>
+            <div id="t1Message" class="test-feedback-msg"></div>
+          </div>
+
+          <!-- TEST 2: ULTRASONIC SENSOR TEST -->
+          <div class="card glassmorphism-card test-card" id="testCard2">
+            <div class="test-card-header">
+              <div class="test-number">TEST 2</div>
+              <h4 class="test-title">HC-SR04 Ultrasonic Sensor Test</h4>
+              <span id="badgeTest2" class="test-badge badge-untested">NOT TESTED</span>
+            </div>
+            <p class="test-detail">Reads live measured distance from GPIO 5 (Trig) &amp; GPIO 18 (Echo). Flags sensor
+              timeout (-1.0) or invalid readings.</p>
+            <div class="test-metrics-box">
+              <div class="t-row"><span>Live Measurement:</span> <strong id="t2DistanceVal">-- cm</strong></div>
+              <div class="t-row"><span>Valid Range Check (2 - 400cm):</span> <strong id="t2RangeCheck">Awaiting
+                  Data</strong></div>
+              <div class="t-row"><span>Sensor Status Flag:</span> <strong id="t2SensorFlag">--</strong></div>
+            </div>
+            <div class="test-actions">
+              <button id="btnTest2Run" class="btn btn-secondary btn-sm">Verify Sensor Health</button>
+            </div>
+            <div id="t2Message" class="test-feedback-msg"></div>
+          </div>
+
+          <!-- TEST 3: RGB LED TEST -->
+          <div class="card glassmorphism-card test-card" id="testCard3">
+            <div class="test-card-header">
+              <div class="test-number">TEST 3</div>
+              <h4 class="test-title">RGB LED Hardware Test</h4>
+              <span id="badgeTest3" class="test-badge badge-untested">NOT TESTED</span>
+            </div>
+            <p class="test-detail">Sends serial commands to ESP32 to test GPIO 14 (RED), GPIO 26 (GREEN), and GPIO 27
+              (BLUE) outputs on physical hardware.</p>
+            <div class="test-controls-row">
+              <button id="btnTest3Red" class="btn btn-sm btn-led-red">Test RED (GPIO 14)</button>
+              <button id="btnTest3Green" class="btn btn-sm btn-led-green">Test GREEN (GPIO 26)</button>
+              <button id="btnTest3Blue" class="btn btn-sm btn-led-blue">Test BLUE (GPIO 27)</button>
+              <button id="btnTest3Off" class="btn btn-sm btn-gray">LED OFF</button>
+            </div>
+            <div class="test-verify-prompt">
+              <span>Did the physical RGB LED illuminate correctly?</span>
+              <div class="btn-group-sm">
+                <button id="btnTest3Pass" class="btn btn-success btn-xs">Yes, Verified PASS</button>
+                <button id="btnTest3Fail" class="btn btn-danger btn-xs">No, FAIL</button>
+              </div>
+            </div>
+            <div id="t3Message" class="test-feedback-msg"></div>
+          </div>
+
+          <!-- TEST 4: BUZZER TEST -->
+          <div class="card glassmorphism-card test-card" id="testCard4">
+            <div class="test-card-header">
+              <div class="test-number">TEST 4</div>
+              <h4 class="test-title">Active Buzzer Test (GPIO 25)</h4>
+              <span id="badgeTest4" class="test-badge badge-untested">NOT TESTED</span>
+            </div>
+            <p class="test-detail">Sends serial commands to test the active buzzer on GPIO 25: short beep, intermittent
+              warning beep, and continuous danger buzzer.</p>
+            <div class="test-controls-row">
+              <button id="btnTest4Short" class="btn btn-sm btn-secondary">Short Beep</button>
+              <button id="btnTest4Intermittent" class="btn btn-sm btn-secondary">Intermittent Beep</button>
+              <button id="btnTest4Continuous" class="btn btn-sm btn-secondary">Continuous Alert</button>
+              <button id="btnTest4Stop" class="btn btn-sm btn-danger">Stop Buzzer</button>
+            </div>
+            <div class="test-verify-prompt">
+              <span>Did the physical buzzer produce sound?</span>
+              <div class="btn-group-sm">
+                <button id="btnTest4Pass" class="btn btn-success btn-xs">Yes, Verified PASS</button>
+                <button id="btnTest4Fail" class="btn btn-danger btn-xs">No, FAIL</button>
+              </div>
+            </div>
+            <div id="t4Message" class="test-feedback-msg"></div>
+          </div>
+
+          <!-- TEST 5: WEBCAM TEST -->
+          <div class="card glassmorphism-card test-card" id="testCard5">
+            <div class="test-card-header">
+              <div class="test-number">TEST 5</div>
+              <h4 class="test-title">Webcam Availability &amp; Stream Test</h4>
+              <span id="badgeTest5" class="test-badge badge-untested">NOT TESTED</span>
+            </div>
+            <p class="test-detail">Verifies browser media permission, active video track state, resolution delivery, and
+              continuous preview rendering.</p>
+            <div class="test-metrics-box">
+              <div class="t-row"><span>Stream Permission:</span> <strong id="t5Perm">Checking...</strong></div>
+              <div class="t-row"><span>Video Dimensions:</span> <strong id="t5Resolution">--</strong></div>
+              <div class="t-row"><span>Track ReadyState:</span> <strong id="t5ReadyState">--</strong></div>
+            </div>
+            <div class="test-actions">
+              <button id="btnTest5Run" class="btn btn-secondary btn-sm">Verify Webcam Stream</button>
+            </div>
+            <div id="t5Message" class="test-feedback-msg"></div>
+          </div>
+
+          <!-- TEST 6: AUTOMATIC IMAGE CAPTURE TEST -->
+          <div class="card glassmorphism-card test-card" id="testCard6">
+            <div class="test-card-header">
+              <div class="test-number">TEST 6</div>
+              <h4 class="test-title">Manual Test Image Capture</h4>
+              <span id="badgeTest6" class="test-badge badge-untested">NOT TESTED</span>
+            </div>
+            <p class="test-detail">Performs a manual test snapshot with Canvas API. Watermarks image as <strong>TEST
+                IMAGE</strong> without adding to actual pothole history.</p>
+            <div class="test-capture-preview-box">
+              <img id="testCaptureImgPreview" class="test-img-thumb hidden" alt="Test Capture Preview">
+              <div id="testCapturePlaceholder" class="test-thumb-placeholder">No test capture taken</div>
+            </div>
+            <div class="test-actions">
+              <button id="btnTest6ManualCapture" class="btn btn-primary btn-sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-svg">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                  <circle cx="12" cy="13" r="4"></circle>
+                </svg>
+                MANUAL TEST CAPTURE
+              </button>
+              <button id="btnTest6Download" class="btn btn-secondary btn-sm hidden">Download Test Image</button>
+            </div>
+            <div id="t6Message" class="test-feedback-msg"></div>
+          </div>
+
+          <!-- TEST 7: AUTO CAPTURE TRIGGER TEST -->
+          <div class="card glassmorphism-card test-card" id="testCard7">
+            <div class="test-card-header">
+              <div class="test-number">TEST 7</div>
+              <h4 class="test-title">Auto Capture Trigger &amp; Re-arm Logic Test</h4>
+              <span id="badgeTest7" class="test-badge badge-untested">NOT TESTED</span>
+            </div>
+            <p class="test-detail">Simulates threshold state machine: triggers at &ge; 56.0 cm, validates exactly 1
+              capture per event, and verifies re-arm at &le; 53.0 cm.</p>
+            <div class="test-metrics-box">
+              <div class="t-row"><span>Trigger Threshold Check (&ge; 56cm):</span> <strong
+                  id="t7TriggerCheck">Pending</strong></div>
+              <div class="t-row"><span>Duplicate Suppression Check:</span> <strong id="t7DebounceCheck">Pending</strong>
+              </div>
+              <div class="t-row"><span>Re-Arm Logic Check (&le; 53cm):</span> <strong id="t7RearmCheck">Pending</strong>
+              </div>
+            </div>
+            <div class="test-actions">
+              <button id="btnTest7Run" class="btn btn-secondary btn-sm">Verify State Machine Logic</button>
+            </div>
+            <div id="t7Message" class="test-feedback-msg"></div>
+          </div>
+
+          <!-- TEST 8: WEBSITE DATA TEST -->
+          <div class="card glassmorphism-card test-card" id="testCard8">
+            <div class="test-card-header">
+              <div class="test-number">TEST 8</div>
+              <h4 class="test-title">Dashboard Telemetry &amp; Storage Test</h4>
+              <span id="badgeTest8" class="test-badge badge-untested">NOT TESTED</span>
+            </div>
+            <p class="test-detail">Checks UI data bindings, distance updates, RGB updates, buzzer status, IndexedDB
+              storage integrity, and serial log buffer.</p>
+            <div class="test-metrics-box">
+              <div class="t-row"><span>IndexedDB Storage:</span> <strong id="t8StorageStatus">Checking...</strong></div>
+              <div class="t-row"><span>REST Backend Sync (/api/status):</span> <strong
+                  id="t8ApiStatus">Checking...</strong></div>
+              <div class="t-row"><span>Data Binding Integrity:</span> <strong id="t8BindingStatus">Checking...</strong>
+              </div>
+            </div>
+            <div class="test-actions">
+              <button id="btnTest8Run" class="btn btn-secondary btn-sm">Verify Dashboard Pipeline</button>
+            </div>
+            <div id="t8Message" class="test-feedback-msg"></div>
+          </div>
+
+        </div>
+
+        <!-- Section 11: Testing Summary Report Table -->
+        <div class="card glassmorphism-card test-report-table-card">
+          <h3 class="card-title">Comprehensive Hardware Verification Summary</h3>
+          <p class="card-subtitle">Per prompt section 11: "Never show PASS unless the corresponding hardware or
+            functionality has actually been tested and verified."</p>
+
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th>Test Item</th>
+                <th>Target Component</th>
+                <th>Verification Criteria</th>
+                <th>Result</th>
+                <th>Diagnostic / Troubleshooting Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>TEST 1</strong></td>
+                <td>ESP32 USB Connection</td>
+                <td>Port opened at 115200 baud, valid JSON received</td>
+                <td><span id="repT1Badge" class="badge badge-untested">UNTESTED</span></td>
+                <td id="repT1Note">Connect ESP32 via USB and click Connect.</td>
+              </tr>
+              <tr>
+                <td><strong>TEST 2</strong></td>
+                <td>Ultrasonic Sensor (HC-SR04)</td>
+                <td>Echo pulse duration between 2cm and 400cm, no timeout</td>
+                <td><span id="repT2Badge" class="badge badge-untested">UNTESTED</span></td>
+                <td id="repT2Note">Check Trig (GPIO 5) & Echo (GPIO 18 with voltage divider).</td>
+              </tr>
+              <tr>
+                <td><strong>TEST 3</strong></td>
+                <td>RGB LED (Common Cathode)</td>
+                <td>GPIO 14 (R), GPIO 26 (G), GPIO 27 (B) user verified</td>
+                <td><span id="repT3Badge" class="badge badge-untested">UNTESTED</span></td>
+                <td id="repT3Note">Click RED, GREEN, BLUE test buttons and observe LED.</td>
+              </tr>
+              <tr>
+                <td><strong>TEST 4</strong></td>
+                <td>Active Buzzer</td>
+                <td>GPIO 25 short, intermittent, and continuous sound</td>
+                <td><span id="repT4Badge" class="badge badge-untested">UNTESTED</span></td>
+                <td id="repT4Note">Click Buzzer test buttons and verify sound output.</td>
+              </tr>
+              <tr>
+                <td><strong>TEST 5</strong></td>
+                <td>Laptop Webcam</td>
+                <td>getUserMedia granted, video track active &gt; 0 fps</td>
+                <td><span id="repT5Badge" class="badge badge-untested">UNTESTED</span></td>
+                <td id="repT5Note">Allow webcam permission in browser.</td>
+              </tr>
+              <tr>
+                <td><strong>TEST 6</strong></td>
+                <td>Image Capture</td>
+                <td>Canvas frame snapshot with TEST IMAGE watermark</td>
+                <td><span id="repT6Badge" class="badge badge-untested">UNTESTED</span></td>
+                <td id="repT6Note">Click Manual Test Capture button.</td>
+              </tr>
+              <tr>
+                <td><strong>TEST 7</strong></td>
+                <td>Auto Trigger &amp; Re-arm</td>
+                <td>Trigger &ge; 56cm, 1 capture/event, re-arm &le; 53cm</td>
+                <td><span id="repT7Badge" class="badge badge-untested">UNTESTED</span></td>
+                <td id="repT7Note">Simulate or run threshold boundary validation.</td>
+              </tr>
+              <tr>
+                <td><strong>TEST 8</strong></td>
+                <td>Dashboard &amp; Storage</td>
+                <td>Telemetry parsing, IndexedDB, and API communication</td>
+                <td><span id="repT8Badge" class="badge badge-untested">UNTESTED</span></td>
+                <td id="repT8Note">Check browser storage and server API status.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- TAB 4: LIVE SERIAL TERMINAL -->
+    <section id="tab-serial" class="tab-content">
+      <div class="card glassmorphism-card terminal-card">
+        <div class="terminal-header">
+          <div class="terminal-title">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-text">ESP32 USB Serial Monitor — 115200 Baud</span>
+          </div>
+          <div class="terminal-controls">
+            <label class="terminal-checkbox">
+              <input type="checkbox" id="chkAutoScroll" checked> Auto-Scroll
+            </label>
+            <label class="terminal-checkbox">
+              <input type="checkbox" id="chkShowTimestamps" checked> Timestamps
+            </label>
+            <button id="btnClearTerminal" class="btn btn-secondary btn-xs">Clear Terminal</button>
+          </div>
+        </div>
+
+        <div id="terminalOutput" class="terminal-output-box">
+          <div class="log-line log-system">[System] Serial Terminal Initialized. Awaiting ESP32 Web Serial Connection...
+          </div>
+        </div>
+
+        <div class="terminal-input-bar">
+          <input type="text" id="serialCmdInput"
+            placeholder="Send serial command to ESP32 (e.g. CMD:PING, CMD:LED_RED, CMD:BUZZER_SHORT)...">
+          <button id="btnSendSerialCmd" class="btn btn-primary btn-sm">Send</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Fullscreen Image Viewer Modal -->
+  <div id="imageViewerModal" class="modal-backdrop hidden">
+    <div class="modal-dialog glassmorphism-modal">
+      <div class="modal-header">
+        <h3 id="modalImageTitle">Pothole Capture Preview</h3>
+        <button id="btnCloseImageModal" class="btn btn-icon modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <img id="modalImageDisplay" src="" alt="Pothole Fullscreen Preview">
+        <div class="modal-meta-grid" id="modalMetaGrid"></div>
+      </div>
+      <div class="modal-footer">
+        <a id="btnModalDownload" href="#" download="pothole_capture.jpg" class="btn btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-svg">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Download High-Resolution Image
+        </a>
+        <button id="btnModalCloseSecondary" class="btn btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hardware Pinout & Wiring Modal -->
+  <div id="pinoutModal" class="modal-backdrop hidden">
+    <div class="modal-dialog glassmorphism-modal modal-lg">
+      <div class="modal-header">
+        <h3>Hardware Pinout &amp; Wiring Diagram</h3>
+        <button id="btnClosePinoutModal" class="btn btn-icon modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body pinout-modal-body">
+        <div class="pinout-grid">
+          <div class="pinout-card">
+            <h4>HC-SR04 Ultrasonic Sensor</h4>
+            <ul>
+              <li><strong>VCC</strong> &rarr; ESP32 VIN / 5V</li>
+              <li><strong>GND</strong> &rarr; ESP32 GND</li>
+              <li><strong>TRIG</strong> &rarr; ESP32 GPIO 5</li>
+              <li><strong>ECHO</strong> &rarr; ESP32 GPIO 18 (via Voltage Divider: 1k&Omega; + 2k&Omega;)</li>
+            </ul>
+            <p class="pinout-tip">⚠️ <em>HC-SR04 Echo output is 5V. ESP32 GPIOs tolerate max 3.3V. The voltage divider
+                protects your ESP32!</em></p>
+          </div>
+
+          <div class="pinout-card">
+            <h4>Common Cathode RGB LED</h4>
+            <ul>
+              <li><strong>RED Anode</strong> &rarr; GPIO 14 (via 220&Omega;/330&Omega; resistor)</li>
+              <li><strong>GREEN Anode</strong> &rarr; GPIO 26 (via 220&Omega;/330&Omega; resistor)</li>
+              <li><strong>BLUE Anode</strong> &rarr; GPIO 27 (via 220&Omega;/330&Omega; resistor)</li>
+              <li><strong>Common Cathode (Long pin)</strong> &rarr; ESP32 GND</li>
+            </ul>
+          </div>
+
+          <div class="pinout-card">
+            <h4>Active Buzzer &amp; USB</h4>
+            <ul>
+              <li><strong>Buzzer Positive (+)</strong> &rarr; GPIO 25</li>
+              <li><strong>Buzzer Negative (-)</strong> &rarr; ESP32 GND</li>
+              <li><strong>ESP32 Micro-USB / Type-C</strong> &rarr; Laptop USB Port (115200 Baud)</li>
+              <li><strong>Webcam</strong> &rarr; Integrated Laptop Webcam or USB Webcam</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="pinout-logic-summary">
+          <h4>Distance Threshold Logic Reference</h4>
+          <table class="pinout-table">
+            <thead>
+              <tr>
+                <th>Zone</th>
+                <th>Distance Range</th>
+                <th>RGB LED</th>
+                <th>Buzzer</th>
+                <th>Camera Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Zone 1: Safe</strong></td>
+                <td>0.0 to 50.0 cm</td>
+                <td>OFF</td>
+                <td>OFF</td>
+                <td>No Capture</td>
+              </tr>
+              <tr>
+                <td><strong>Zone 2: Normal</strong></td>
+                <td>&gt; 50.0 to 55.0 cm</td>
+                <td>GREEN</td>
+                <td>OFF</td>
+                <td>No Capture</td>
+              </tr>
+              <tr>
+                <td><strong>Zone 3: Pothole Warning</strong></td>
+                <td>&gt; 55.0 to 60.0 cm</td>
+                <td>BLUE</td>
+                <td>Intermittent Beep</td>
+                <td>Auto Capture (at &ge; 56cm)</td>
+              </tr>
+              <tr>
+                <td><strong>Zone 4: Critical Danger</strong></td>
+                <td>&gt; 60.0 cm</td>
+                <td>RED</td>
+                <td>Continuous Sound</td>
+                <td>Auto Capture (if not already captured)</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="pinout-tip">🔄 <strong>Re-arm Rule:</strong> After capture at &ge; 56.0 cm, system only re-arms when
+            distance drops back to &le; 53.0 cm!</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btnClosePinoutSecondary" class="btn btn-primary">Got it</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audio element for synthetic buzzer feedback when monitoring (optional) -->
+  <audio id="audioFeedback" class="hidden"></audio>
+
+  <!-- Leaflet Map Library (Local High-Speed Storage) -->
+  <script src="leaflet.js"></script>
+
+  <script src="app.js?v=2.1"></script>
+</body>
+
+</html>
